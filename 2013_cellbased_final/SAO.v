@@ -21,14 +21,17 @@ output  finish;
 
 `ifdef LCU_SIZE0
    reg [7:0] mem [255:0];
+   reg [7:0] mem2 [255:0];
 `endif
 
 `ifdef LCU_SIZE1
    reg [7:0] mem [1023:0];
+   reg [7:0] mem2 [1023:0];
 `endif
 
 `ifdef LCU_SIZE2
    reg [7:0] mem [4095:0];
+   reg [7:0] mem2 [4095:0];
 `endif
 
 //============================================================================
@@ -107,17 +110,19 @@ always @(*) begin
     end
   end else if(cs == GET_LCU && in_en) begin
     mem[lcu_e_count] = din;
-  end else begin
-    mem[lcu_e_count] = mem[lcu_e_count];
-  end
+  end else mem[lcu_e_count] = 8'hzz;
+end
+
+always @(posedge clk or posedge reset) begin
+  if(mem[lcu_e_count] >= 0) mem2[lcu_e_count] <= mem[lcu_e_count];
 end
 
 //EO category
 always @(*) begin
   if(cs == CAL && sao_eo_class == 1'b0) begin
-    a = mem[lcu_e_count - 'd1];
-    b = mem[lcu_e_count + 'd1];
-    c = mem[lcu_e_count];
+    a = mem2[lcu_e_count - 'd1];
+    b = mem2[lcu_e_count + 'd1];
+    c = mem2[lcu_e_count];
 
     if(c < a && c < b) EO_CAT = 3'd1;
     else if((c < a && c == b) || (c < b && c == a)) EO_CAT = 3'd2;
@@ -125,9 +130,9 @@ always @(*) begin
     else if(c > a && c > b) EO_CAT = 3'd4;
     else EO_CAT = 3'd0;
   end else if(cs == CAL && sao_eo_class == 1'b1) begin
-    a = mem[lcu_e_count - size_width];
-    b = mem[lcu_e_count + size_width];
-    c = mem[lcu_e_count];
+    a = mem2[lcu_e_count - size_width];
+    b = mem2[lcu_e_count + size_width];
+    c = mem2[lcu_e_count];
 
     if(c < a && c < b) EO_CAT = 3'd1;
     else if((c < a && c == b) || (c < b && c == a)) EO_CAT = 3'd2;
@@ -167,59 +172,59 @@ always @(*) begin
   if(cs == CAL) begin
     case (sao_type)
       2'd0: begin
-        sao_out = mem[lcu_e_count];
+        sao_out = mem2[lcu_e_count];
       end
       2'd1: begin
-        if((mem[lcu_e_count] >= sao_band_pos * 'd8) && (mem[lcu_e_count] < (sao_band_pos + 4) * 'd8)) begin
-          if(mem[lcu_e_count] >= (sao_band_pos + 3) * 'd8) begin
-            sao_out = mem[lcu_e_count] + {{4{sao_offset[3]}}, sao_offset[3:0]};
-          end else if(mem[lcu_e_count] >= (sao_band_pos + 2) * 'd8) begin
-            sao_out = mem[lcu_e_count] + {{4{sao_offset[7]}}, sao_offset[7:4]};
-          end else if(mem[lcu_e_count] >= (sao_band_pos + 1) * 'd8) begin
-            sao_out = mem[lcu_e_count] + {{4{sao_offset[11]}}, sao_offset[11:8]};
+        if((mem2[lcu_e_count] >= sao_band_pos << 3) && (mem2[lcu_e_count] < (sao_band_pos + 4) << 3)) begin
+          if(mem2[lcu_e_count] >= (sao_band_pos + 3) << 3) begin
+            sao_out = mem2[lcu_e_count] + {{4{sao_offset[3]}}, sao_offset[3:0]};
+          end else if(mem2[lcu_e_count] >= (sao_band_pos + 2) << 3) begin
+            sao_out = mem2[lcu_e_count] + {{4{sao_offset[7]}}, sao_offset[7:4]};
+          end else if(mem2[lcu_e_count] >= (sao_band_pos + 1) << 3) begin
+            sao_out = mem2[lcu_e_count] + {{4{sao_offset[11]}}, sao_offset[11:8]};
           end else begin
-            sao_out = mem[lcu_e_count] + {{4{sao_offset[15]}}, sao_offset[15:12]}; // * 'd8 換 << 3
+            sao_out = mem2[lcu_e_count] + {{4{sao_offset[15]}}, sao_offset[15:12]};
           end
-        end else sao_out = mem[lcu_e_count];
+        end else sao_out = mem2[lcu_e_count];
       end
       2'd2: begin
         case (sao_eo_class)
           1'b0: begin
             if(lcu_e_count % size_width == (size_width - 1))
-              sao_out = mem[lcu_e_count];
+              sao_out = mem2[lcu_e_count];
             else if(lcu_e_count % size_width == 0)
-              sao_out = mem[lcu_e_count];
+              sao_out = mem2[lcu_e_count];
             else begin
               case (EO_CAT)
-                3'd0: sao_out = mem[lcu_e_count];
-                3'd1: sao_out = mem[lcu_e_count] + {{4{sao_offset[15]}}, sao_offset[15:12]};
-                3'd2: sao_out = mem[lcu_e_count] + {{4{sao_offset[11]}}, sao_offset[11:8]};
-                3'd3: sao_out = mem[lcu_e_count] + {{4{sao_offset[7]}}, sao_offset[7:4]};
-                3'd4: sao_out = mem[lcu_e_count] + {{4{sao_offset[3]}}, sao_offset[3:0]};
-                default: sao_out = mem[lcu_e_count];
+                3'd0: sao_out = mem2[lcu_e_count];
+                3'd1: sao_out = mem2[lcu_e_count] + {{4{sao_offset[15]}}, sao_offset[15:12]};
+                3'd2: sao_out = mem2[lcu_e_count] + {{4{sao_offset[11]}}, sao_offset[11:8]};
+                3'd3: sao_out = mem2[lcu_e_count] + {{4{sao_offset[7]}}, sao_offset[7:4]};
+                3'd4: sao_out = mem2[lcu_e_count] + {{4{sao_offset[3]}}, sao_offset[3:0]};
+                default: sao_out = mem2[lcu_e_count];
               endcase
             end
           end
           1'b1: begin
             if(lcu_e_count < size_width)
-              sao_out = mem[lcu_e_count];
+              sao_out = mem2[lcu_e_count];
             else if(lcu_e_count < (size_width << size_b - size_width))
-              sao_out = mem[lcu_e_count];
+              sao_out = mem2[lcu_e_count];
             else begin
               case (EO_CAT)
-                3'd0: sao_out = mem[lcu_e_count];
-                3'd1: sao_out = mem[lcu_e_count] + {{4{sao_offset[15]}}, sao_offset[15:12]};
-                3'd2: sao_out = mem[lcu_e_count] + {{4{sao_offset[11]}}, sao_offset[11:8]};
-                3'd3: sao_out = mem[lcu_e_count] + {{4{sao_offset[7]}}, sao_offset[7:4]};
-                3'd4: sao_out = mem[lcu_e_count] + {{4{sao_offset[3]}}, sao_offset[3:0]};
-                default: sao_out = mem[lcu_e_count];
+                3'd0: sao_out = mem2[lcu_e_count];
+                3'd1: sao_out = mem2[lcu_e_count] + {{4{sao_offset[15]}}, sao_offset[15:12]};
+                3'd2: sao_out = mem2[lcu_e_count] + {{4{sao_offset[11]}}, sao_offset[11:8]};
+                3'd3: sao_out = mem2[lcu_e_count] + {{4{sao_offset[7]}}, sao_offset[7:4]};
+                3'd4: sao_out = mem2[lcu_e_count] + {{4{sao_offset[3]}}, sao_offset[3:0]};
+                default: sao_out = mem2[lcu_e_count];
               endcase
             end
           end
-          default: sao_out = mem[lcu_e_count];
+          default: sao_out = mem2[lcu_e_count];
         endcase
       end
-      default: sao_out = mem[lcu_e_count];
+      default: sao_out = mem2[lcu_e_count];
     endcase
   end else sao_out = 8'd0;
 end
